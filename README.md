@@ -1,1 +1,3 @@
-# face_eye_detection
+# Gaze Tracker: Real-time Face and Eye Detection
+
+This project uses OpenCV library and a pre-trained Haar Cascade Classifier to detect human faces and eyes in real-time using the computer's camera. The code captures video frames and converts them to grayscale for faster processing. The program then applies the face detection model to identify faces in the image and draws rectangles around them. It then applies the eye detection model to detect eyes within the face rectangle and draws rectangles around them. The output is displayed using the imshow() function and waits for the user to press 'x' to exit the program.

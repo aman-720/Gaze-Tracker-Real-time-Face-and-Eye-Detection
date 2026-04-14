@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project-specific
+models/*.dat
+models/*.bz2
+assets/alarm/*.wav
+assets/*.task
+logs/
+data/output.*
+*.avi
+*.mp4
+
+# Claude Code
+CLAUDE.md
+
+# Jupyter
+.ipynb_checkpoints/

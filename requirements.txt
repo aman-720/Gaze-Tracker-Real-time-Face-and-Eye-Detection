@@ -1,0 +1,18 @@
+# Driver Drowsiness Detection System — Dependencies
+#
+# Install: pip install -r requirements.txt
+#
+# All packages are pure-Python wheels — no compilation required.
+# Compatible with Python 3.10, 3.11, 3.12, and 3.13.
+
+# Core vision
+opencv-python>=4.8.0
+mediapipe>=0.10.0
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Audio alarm
+pygame>=2.5.0
+
+# Testing
+pytest>=7.4.0

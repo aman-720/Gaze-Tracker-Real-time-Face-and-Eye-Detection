@@ -1,8 +1,8 @@
+<h1 align="center">Driver Drowsiness Detection System</h1>
+
 <p align="center">
   <img src="docs/banner.png" alt="Driver Drowsiness Detection System" width="100%">
 </p>
-
-<h1 align="center">Driver Drowsiness Detection System</h1>
 
 <p align="center">
   Real-time eye-closure monitoring and drowsiness alerting using computer vision

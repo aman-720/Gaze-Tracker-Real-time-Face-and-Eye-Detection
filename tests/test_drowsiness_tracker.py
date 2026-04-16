@@ -93,3 +93,86 @@ class TestDrowsinessTracker:
             self.tracker.update(avg_ear=0.15, face_detected=True)
         duration = self.tracker.get_closure_duration_sec(fps=30.0)
         assert duration == pytest.approx(1.0)
+
+
+class TestYawnTracking:
+    """Tests for yawn detection state machine."""
+
+    def setup_method(self):
+        self.tracker = DrowsinessTracker(
+            ear_threshold=0.22,
+            closed_frames_threshold=10,
+            mar_threshold=0.6,
+            yawn_frames_threshold=5,   # small for testing
+            yawn_count_warning=3,
+        )
+
+    def test_no_yawn_when_mouth_closed(self):
+        for _ in range(20):
+            state = self.tracker.update(avg_ear=0.30, face_detected=True, mar=0.2)
+        assert state == DriverState.AWAKE
+        assert self.tracker.total_yawns == 0
+
+    def test_yawn_detected_after_threshold_frames(self):
+        for _ in range(10):
+            state = self.tracker.update(avg_ear=0.30, face_detected=True, mar=0.8)
+        assert state == DriverState.YAWNING
+        assert self.tracker.total_yawns == 1
+
+    def test_yawn_not_counted_below_threshold_frames(self):
+        # Open mouth for fewer frames than threshold
+        for _ in range(3):
+            self.tracker.update(avg_ear=0.30, face_detected=True, mar=0.8)
+        # Close mouth
+        self.tracker.update(avg_ear=0.30, face_detected=True, mar=0.2)
+        assert self.tracker.total_yawns == 0
+
+    def test_recovery_from_yawning_to_awake(self):
+        # Trigger yawn
+        for _ in range(10):
+            self.tracker.update(avg_ear=0.30, face_detected=True, mar=0.8)
+        assert self.tracker.state == DriverState.YAWNING
+
+        # Close mouth
+        state = self.tracker.update(avg_ear=0.30, face_detected=True, mar=0.2)
+        assert state == DriverState.AWAKE
+
+    def test_yawn_warning_after_count_threshold(self):
+        assert not self.tracker.yawn_warning
+
+        for yawn in range(3):
+            # Yawn
+            for _ in range(10):
+                self.tracker.update(avg_ear=0.30, face_detected=True, mar=0.8)
+            # Close mouth between yawns
+            for _ in range(5):
+                self.tracker.update(avg_ear=0.30, face_detected=True, mar=0.2)
+
+        assert self.tracker.total_yawns == 3
+        assert self.tracker.yawn_warning
+
+    def test_drowsy_takes_priority_over_yawning(self):
+        # Close eyes long enough to trigger drowsy
+        for _ in range(15):
+            self.tracker.update(avg_ear=0.15, face_detected=True, mar=0.8)
+        # DROWSY should take priority even though mouth is open
+        assert self.tracker.state == DriverState.DROWSY
+
+    def test_single_yawn_counted_once(self):
+        # Sustained open mouth should only count as one yawn
+        for _ in range(30):
+            self.tracker.update(avg_ear=0.30, face_detected=True, mar=0.8)
+        assert self.tracker.total_yawns == 1
+
+    def test_yawn_count_in_summary(self):
+        for _ in range(10):
+            self.tracker.update(avg_ear=0.30, face_detected=True, mar=0.8)
+        summary = self.tracker.get_summary()
+        assert summary["total_yawns"] == 1
+
+    def test_reset_clears_yawn_state(self):
+        for _ in range(10):
+            self.tracker.update(avg_ear=0.30, face_detected=True, mar=0.8)
+        self.tracker.reset()
+        assert self.tracker.total_yawns == 0
+        assert not self.tracker.yawn_warning

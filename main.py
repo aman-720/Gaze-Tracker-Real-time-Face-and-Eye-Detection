@@ -4,10 +4,10 @@ Driver Drowsiness Detection System — Main Entry Point
 Real-time detection pipeline:
   1. Capture frame from webcam or video file
   2. Detect face using MediaPipe Face Mesh
-  3. Extract eye landmark coordinates (6 points per eye)
-  4. Compute Eye Aspect Ratio (EAR)
-  5. Track consecutive closed-eye frames
-  6. Trigger alarm if eyes closed > 3 seconds
+  3. Extract eye landmarks (6 pts/eye) and mouth landmarks (8 pts)
+  4. Compute Eye Aspect Ratio (EAR) and Mouth Aspect Ratio (MAR)
+  5. Track consecutive closed-eye frames and yawn events
+  6. Trigger alarm if eyes closed > 3 seconds; warn on repeated yawns
   7. Display annotated video with status overlay
 
 Usage:
@@ -26,6 +26,7 @@ import cv2
 from src.config import AppConfig
 from src.face_detector import FaceDetector
 from src.eye_tracker import compute_avg_ear
+from src.mouth_tracker import compute_mar
 from src.drowsiness_tracker import DrowsinessTracker, DriverState
 from src.alarm import AlarmSystem
 from src.visualizer import draw_overlay
@@ -49,6 +50,10 @@ def parse_args() -> argparse.Namespace:
         help="Seconds of continuous eye closure to trigger alarm (default: 3.0)",
     )
     parser.add_argument(
+        "--mar-threshold", type=float, default=0.6,
+        help="MAR threshold above which mouth is considered open/yawning (default: 0.6)",
+    )
+    parser.add_argument(
         "--no-display", action="store_true",
         help="Run without GUI window (alarm-only mode)",
     )
@@ -69,6 +74,7 @@ def main():
     # ── Configuration ──────────────────────────────────────────────
     config = AppConfig()
     config.detection.ear_threshold = args.ear_threshold
+    config.detection.mar_threshold = args.mar_threshold
 
     # Parse video source
     source = int(args.source) if args.source.isdigit() else args.source
@@ -83,6 +89,7 @@ def main():
     logger.info("Starting Driver Drowsiness Detection System")
     logger.info(f"Source: {source}")
     logger.info(f"EAR threshold: {args.ear_threshold}")
+    logger.info(f"MAR threshold: {args.mar_threshold}")
     logger.info(f"Closed-eye time trigger: {args.closed_time}s ({closed_frames_threshold} frames)")
 
     detector = FaceDetector(config.detection)
@@ -90,6 +97,9 @@ def main():
     tracker = DrowsinessTracker(
         ear_threshold=config.detection.ear_threshold,
         closed_frames_threshold=closed_frames_threshold,
+        mar_threshold=config.detection.mar_threshold,
+        yawn_frames_threshold=config.detection.yawn_frames_threshold,
+        yawn_count_warning=config.detection.yawn_count_warning,
     )
 
     alarm = None
@@ -140,14 +150,16 @@ def main():
             )
 
             # ── Detection pipeline ─────────────────────────────────
-            face_detected, left_eye, right_eye, face_rect = detector.process(frame)
+            face_detected, left_eye, right_eye, face_rect, mouth = detector.process(frame)
 
             ear = 0.0
+            mar = 0.0
             if face_detected:
                 _, _, ear = compute_avg_ear(left_eye, right_eye)
+                mar = compute_mar(mouth)
 
             # ── State update ───────────────────────────────────────
-            state = tracker.update(ear, face_detected)
+            state = tracker.update(ear, face_detected, mar)
 
             # ── Alarm logic ────────────────────────────────────────
             if state == DriverState.DROWSY:
@@ -157,6 +169,12 @@ def main():
                     f"DROWSY ALERT! Eyes closed for "
                     f"{tracker.get_closure_duration_sec(fps if fps > 0 else estimated_fps):.1f}s"
                 )
+
+            if state == DriverState.YAWNING:
+                logger.info(f"Yawn detected (total: {tracker.total_yawns})")
+
+            if tracker.yawn_warning:
+                logger.warning(f"FATIGUE WARNING: {tracker.total_yawns} yawns detected")
 
             # ── Visualization ──────────────────────────────────────
             if not args.no_display:
@@ -170,6 +188,10 @@ def main():
                     left_eye=left_eye,
                     right_eye=right_eye,
                     face_rect=face_rect,
+                    mouth=mouth,
+                    mar=mar,
+                    yawn_count=tracker.total_yawns,
+                    yawn_warning=tracker.yawn_warning,
                     show_landmarks=config.display.show_landmarks,
                     show_ear=config.display.show_ear_value,
                     show_fps=config.display.show_fps,
@@ -201,7 +223,7 @@ def main():
         summary = tracker.get_summary()
         logger.info(
             f"Session summary: {summary['total_drowsiness_events']} drowsiness events, "
-            f"{summary['total_blinks']} blinks detected"
+            f"{summary['total_blinks']} blinks, {summary['total_yawns']} yawns detected"
         )
         for i, evt in enumerate(summary["events"], 1):
             logger.info(f"  Event {i}: {evt['duration_sec']}s")

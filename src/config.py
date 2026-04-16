@@ -33,6 +33,17 @@ class DetectionConfig:
     # At 30 FPS, 90 frames ≈ 3 seconds
     closed_frames_threshold: int = 90
 
+    # Mouth Aspect Ratio (MAR) threshold — above this, mouth is "open wide" (yawn)
+    # Typical closed-mouth MAR: 0.1–0.3 | yawn MAR: >0.6
+    mar_threshold: float = 0.6
+
+    # Number of consecutive frames mouth must be open to count as a yawn
+    # At 30 FPS, 15 frames ≈ 0.5 seconds (yawns are typically 2–4 seconds)
+    yawn_frames_threshold: int = 15
+
+    # Number of yawns within a session window that triggers a yawn warning
+    yawn_count_warning: int = 3
+
 
 @dataclass
 class CameraConfig:

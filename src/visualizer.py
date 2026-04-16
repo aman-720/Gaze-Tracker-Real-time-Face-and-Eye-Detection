@@ -36,6 +36,10 @@ def draw_overlay(
     left_eye: np.ndarray | None = None,
     right_eye: np.ndarray | None = None,
     face_rect=None,
+    mouth: np.ndarray | None = None,
+    mar: float = 0.0,
+    yawn_count: int = 0,
+    yawn_warning: bool = False,
     show_landmarks: bool = True,
     show_ear: bool = True,
     show_fps: bool = True,
@@ -81,6 +85,10 @@ def draw_overlay(
         if right_eye is not None:
             hull = cv2.convexHull(right_eye)
             cv2.drawContours(frame, [hull], -1, GREEN, 1)
+        if mouth is not None:
+            hull = cv2.convexHull(mouth)
+            mouth_color = YELLOW if state == DriverState.YAWNING else GREEN
+            cv2.drawContours(frame, [hull], -1, mouth_color, 1)
 
     # ── Status bar background ──────────────────────────────────────
     cv2.rectangle(frame, (0, 0), (w, 60), BLACK, -1)
@@ -93,25 +101,50 @@ def draw_overlay(
         overlay = frame.copy()
         cv2.rectangle(overlay, (0, 0), (w, h), RED, 20)
         cv2.addWeighted(overlay, 0.4, frame, 0.6, 0, frame)
+    elif state == DriverState.YAWNING:
+        label = "YAWNING"
+        label_color = YELLOW
+        if yawn_warning:
+            label = "YAWNING - FATIGUE WARNING!"
+            # Yellow border flash for yawn warning
+            overlay = frame.copy()
+            cv2.rectangle(overlay, (0, 0), (w, h), YELLOW, 15)
+            cv2.addWeighted(overlay, 0.3, frame, 0.7, 0, frame)
     elif state == DriverState.NO_FACE:
         label = "NO FACE DETECTED"
         label_color = YELLOW
     else:
         label = "AWAKE"
         label_color = GREEN
+        if yawn_warning:
+            label = "AWAKE - FATIGUE WARNING"
+            label_color = ORANGE
 
     cv2.putText(
         frame, label, (10, 40),
         cv2.FONT_HERSHEY_SIMPLEX, 0.9, label_color, 2,
     )
 
-    # ── EAR value ──────────────────────────────────────────────────
+    # ── EAR + MAR values ────────────────────────────────────────────
     if show_ear:
         ear_text = f"EAR: {ear:.3f}"
         cv2.putText(
             frame, ear_text, (w - 180, 40),
             cv2.FONT_HERSHEY_SIMPLEX, 0.7, WHITE, 2,
         )
+        mar_text = f"MAR: {mar:.3f}"
+        cv2.putText(
+            frame, mar_text, (w - 180, 58),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.4, WHITE, 1,
+        )
+
+    # ── Yawn count ────────────────────────────────────────────────
+    yawn_color = YELLOW if yawn_warning else WHITE
+    yawn_text = f"Yawns: {yawn_count}"
+    cv2.putText(
+        frame, yawn_text, (10, h - 50),
+        cv2.FONT_HERSHEY_SIMPLEX, 0.5, yawn_color, 1,
+    )
 
     # ── FPS counter ────────────────────────────────────────────────
     if show_fps:

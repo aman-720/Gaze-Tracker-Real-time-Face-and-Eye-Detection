@@ -15,6 +15,11 @@ Eye landmark indices (MediaPipe 478-point convention — same as the old 468):
 These 6 indices per eye are ordered for the EAR formula:
     p0 = outer corner  p1 = upper-outer  p2 = upper-inner
     p3 = inner corner  p4 = lower-inner  p5 = lower-outer
+
+Mouth landmark indices (MediaPipe 478-point convention):
+  Inner lips used for yawn detection — vertical and horizontal extents.
+  Top: 13  Bottom: 14  Left corner: 78  Right corner: 308
+  Upper inner: 82, 312  Lower inner: 87, 317
 """
 
 import time
@@ -70,6 +75,11 @@ def _ensure_model() -> str:
 RIGHT_EYE_IDX = [33,  160, 158, 133, 153, 144]
 LEFT_EYE_IDX  = [362, 385, 387, 263, 373, 380]
 
+# Inner lip landmarks for Mouth Aspect Ratio (MAR) — yawn detection
+# Ordered: top, upper-left, upper-right, bottom, lower-left, lower-right,
+#          left corner, right corner
+MOUTH_IDX = [13, 82, 312, 14, 87, 317, 78, 308]
+
 
 class FaceDetector:
     """Detects faces and extracts eye landmarks using MediaPipe Tasks API."""
@@ -106,6 +116,7 @@ class FaceDetector:
               - left_eye  (6, 2) int32 array or None
               - right_eye (6, 2) int32 array or None
               - face_rect dict {"x1","y1","x2","y2"} in pixels, or None
+              - mouth (8, 2) int32 array or None
         """
         h, w = frame.shape[:2]
 
@@ -118,7 +129,7 @@ class FaceDetector:
         result = self._landmarker.detect_for_video(mp_image, timestamp_ms)
 
         if not result.face_landmarks:
-            return False, None, None, None
+            return False, None, None, None, None
 
         # Use first detected face (max_num_faces=1 anyway)
         lm = result.face_landmarks[0]
@@ -131,6 +142,7 @@ class FaceDetector:
 
         left_eye  = pts[LEFT_EYE_IDX].astype(np.int32)
         right_eye = pts[RIGHT_EYE_IDX].astype(np.int32)
+        mouth     = pts[MOUTH_IDX].astype(np.int32)
 
         # Loose face bounding box from all mesh points
         x_min, y_min = pts[:, 0].min(), pts[:, 1].min()
@@ -142,7 +154,7 @@ class FaceDetector:
             "y2": min(h, int(y_max)),
         }
 
-        return True, left_eye, right_eye, face_rect
+        return True, left_eye, right_eye, face_rect, mouth
 
     def close(self):
         """Release MediaPipe resources."""
